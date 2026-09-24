@@ -1,0 +1,133 @@
+// Prisma schema for EduPulse AI (SQLite & PostgreSQL Compatible)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String       @id @default(uuid())
+  name         String
+  email        String       @unique
+  passwordHash String
+  role         String       @default("STUDENT") // STUDENT, INSTRUCTOR, ADMIN
+  avatar       String?
+  bio          String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  coursesCreated Course[]   @relation("InstructorCourses")
+  enrollments    Enrollment[]
+  submissions    Submission[]
+  auditLogs      AuditLog[]
+}
+
+model Course {
+  id           String       @id @default(uuid())
+  title        String
+  slug         String       @unique
+  description  String
+  category     String       @default("General Ed")
+  level        String       @default("BEGINNER") // BEGINNER, INTERMEDIATE, ADVANCED
+  published    Boolean      @default(false)
+  coverImage   String?
+  instructorId String
+  instructor   User         @relation("InstructorCourses", fields: [instructorId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  modules     Module[]
+  enrollments Enrollment[]
+}
+
+model Module {
+  id          String   @id @default(uuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  order       Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  lessons     Lesson[]
+}
+
+model Lesson {
+  id        String   @id @default(uuid())
+  moduleId  String
+  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title     String
+  content   String
+  type      String   @default("TEXT") // TEXT, VIDEO, QUIZ, AI_PRACTICE
+  duration  Int      @default(10) // minutes
+  order     Int      @default(1)
+  createdAt DateTime @default(now())
+
+  quizzes   Quiz[]
+}
+
+model Quiz {
+  id           String       @id @default(uuid())
+  lessonId     String
+  lesson       Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  passingScore Int          @default(70) // percentage
+  createdAt    DateTime     @default(now())
+
+  questions   Question[]
+  submissions Submission[]
+}
+
+model Question {
+  id            String   @id @default(uuid())
+  quizId        String
+  quiz          Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  text          String
+  optionsJson   String   // JSON array of string options
+  correctAnswer String
+  explanation   String?
+  difficulty    String   @default("INTERMEDIATE") // BEGINNER, INTERMEDIATE, ADVANCED
+  bloomTaxonomy String   @default("Understand") // Remember, Understand, Apply, Analyze, Evaluate, Create
+}
+
+model Enrollment {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId       String
+  course         Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progress       Int       @default(0) // 0-100 percentage
+  completed      Boolean   @default(false)
+  enrolledAt     DateTime  @default(now())
+  lastAccessedAt DateTime  @default(now())
+
+  @@unique([userId, courseId])
+}
+
+model Submission {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quizId      String
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  score       Int      // percentage score
+  passed      Boolean  @default(false)
+  answersJson String   // JSON array of user selected options
+  aiFeedback  String?  // Rich AI detailed evaluation & gap analysis
+  submittedAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  details   String
+  ipAddress String?
+  timestamp DateTime @default(now())
+}
